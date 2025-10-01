@@ -1,0 +1,201 @@
+
+import React, { useState, useEffect } from 'react';
+import { User } from '@/entities/User';
+import { Session } from '@/entities/Session';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { HelpCircle, LogIn } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+import BreathingGuide from '../components/breathwork/BreathingGuide';
+import CompletionModal from '../components/breathwork/CompletionModal';
+import InstructionsModal from '../components/breathwork/InstructionsModal';
+
+export default function Home() {
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [selectedDuration, setSelectedDuration] = useState(10);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const durations = [5, 10, 15, 20, 30];
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const userData = await User.me();
+      setUser(userData);
+      setIsAuthenticated(true);
+      setSoundEnabled(userData.sound_enabled ?? true);
+      
+      // Initialize trial if new user
+      if (!userData.trial_start_date) {
+        await User.updateMyUserData({
+          trial_start_date: new Date().toISOString().split('T')[0]
+        });
+      }
+    } catch (error) {
+      setIsAuthenticated(false);
+    }
+    setIsLoading(false);
+  };
+
+  const handleLogin = async () => {
+    await User.loginWithRedirect(window.location.href);
+  };
+
+  const handleSessionComplete = async () => {
+    setShowCompletion(true);
+    
+    // Record the completed session
+    if (isAuthenticated) {
+      try {
+        await Session.create({
+          duration_minutes: selectedDuration,
+          completed: true,
+          date: new Date().toISOString().split('T')[0]
+        });
+      } catch (error) {
+        console.log('Could not save session');
+      }
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full text-center"
+        >
+          <Card className="shadow-2xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-teal-500 to-green-500 text-white p-6 sm:p-8">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-8 h-8 bg-white rounded-full"></div>
+              </div>
+              <CardTitle className="text-xl sm:text-2xl font-bold">Welcome to Coherence</CardTitle>
+              <p className="text-sm sm:text-base text-teal-100 mt-2">Your journey to better health starts with better breathing</p>
+            </CardHeader>
+            
+            <CardContent className="p-6 sm:p-8 space-y-6">
+              <div className="space-y-4">
+                <Badge className="bg-green-100 text-green-800 border-green-200 px-3 sm:px-4 py-2 text-xs sm:text-sm">
+                  30-day free trial • Then £1.50/month
+                </Badge>
+                
+                <div className="text-left space-y-3 text-xs sm:text-sm text-gray-600">
+                  <p>✨ Reduce stress and anxiety</p>
+                  <p>💚 Improve heart health</p>
+                  <p>🧠 Enhance focus and clarity</p>
+                  <p>😌 Better emotional regulation</p>
+                </div>
+              </div>
+              
+              <Button
+                onClick={handleLogin}
+                className="w-full bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white py-3 sm:py-4 rounded-full shadow-lg text-sm sm:text-base"
+              >
+                <LogIn className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Start Your Free Trial
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen p-4 sm:p-6 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-6 sm:mb-8 px-2"
+        >
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">
+            Coherence Breathing
+          </h1>
+          <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto px-2">
+            Practice 6 breaths per minute to optimise your heart rate variability and activate your body's natural relaxation response.
+          </p>
+          
+          <Button
+            variant="ghost"
+            onClick={() => setShowInstructions(true)}
+            className="mt-3 sm:mt-4 text-teal-600 hover:text-teal-700 hover:bg-teal-50 text-sm sm:text-base min-h-[44px]"
+          >
+            <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+            How it works
+          </Button>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="bg-white/80 backdrop-blur-sm shadow-2xl border-0 mb-6 sm:mb-8">
+            <CardHeader className="text-center pb-3 sm:pb-4 px-4 sm:px-6">
+              <CardTitle className="text-lg sm:text-xl text-gray-800">Choose Your Session Length</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-6 sm:pb-8 px-4 sm:px-6">
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+                {durations.map((duration) => (
+                  <Button
+                    key={duration}
+                    variant={selectedDuration === duration ? "default" : "outline"}
+                    onClick={() => setSelectedDuration(duration)}
+                    className={`min-h-[44px] min-w-[64px] px-4 sm:px-6 text-sm sm:text-base ${
+                      selectedDuration === duration 
+                        ? "bg-teal-500 hover:bg-teal-600 text-white border-0 shadow-lg transform scale-105" 
+                        : "border-gray-300 hover:border-teal-300 hover:bg-teal-50"
+                    }`}
+                  >
+                    {duration} min
+                  </Button>
+                ))}
+              </div>
+
+              <BreathingGuide
+                duration={selectedDuration}
+                onComplete={handleSessionComplete}
+                soundEnabled={soundEnabled}
+                setSoundEnabled={setSoundEnabled}
+              />
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      <CompletionModal
+        isVisible={showCompletion}
+        onClose={() => setShowCompletion(false)}
+        duration={selectedDuration}
+      />
+
+      <InstructionsModal
+        isOpen={showInstructions}
+        onClose={() => setShowInstructions(false)}
+      />
+    </div>
+  );
+}
