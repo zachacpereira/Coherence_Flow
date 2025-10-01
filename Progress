@@ -1,0 +1,333 @@
+
+import React, { useState, useEffect } from 'react';
+import { Session } from '@/entities/Session';
+import { User } from '@/entities/User';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, Flame, TrendingUp, Target } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+export default function Progress() {
+  const [sessions, setSessions] = useState([]);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const userData = await User.me();
+      setUser(userData);
+      
+      const sessionData = await Session.list('-created_date');
+      setSessions(sessionData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    setIsLoading(false);
+  };
+
+  const getStats = () => {
+    const totalSessions = sessions.length;
+    const totalMinutes = sessions.reduce((sum, session) => sum + session.duration_minutes, 0);
+    const averageLength = totalSessions > 0 ? totalMinutes / totalSessions : 0;
+    
+    // Calculate streak
+    const today = new Date().toISOString().split('T')[0];
+    const sortedDates = [...new Set(sessions.map(s => s.date))].sort().reverse();
+    
+    let streak = 0;
+    let currentDate = new Date();
+    
+    for (const dateStr of sortedDates) {
+      const sessionDate = new Date(dateStr);
+      const diffDays = Math.floor((currentDate - sessionDate) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === streak) {
+        streak++;
+      } else if (diffDays === streak + 1) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    
+    return {
+      totalSessions,
+      totalMinutes,
+      averageLength,
+      streak
+    };
+  };
+
+  const getWeeklyData = () => {
+    const weeklyData = {};
+    const today = new Date();
+    
+    // Get last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      weeklyData[dateStr] = 0;
+    }
+    
+    // Add session data
+    sessions.forEach(session => {
+      if (weeklyData.hasOwnProperty(session.date)) {
+        weeklyData[session.date] += session.duration_minutes;
+      }
+    });
+    
+    return weeklyData;
+  };
+
+  const getTrialInfo = () => {
+    if (!user?.trial_start_date || user.subscription_active) return null;
+    
+    const trialStart = new Date(user.trial_start_date);
+    const now = new Date();
+    const daysElapsed = Math.floor((now - trialStart) / (1000 * 60 * 60 * 24));
+    const daysLeft = Math.max(0, 30 - daysElapsed);
+    
+    return { daysLeft, isExpired: daysLeft === 0 };
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your progress...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = getStats();
+  const weeklyData = getWeeklyData();
+  const trialInfo = getTrialInfo();
+
+  return (
+    <div className="min-h-screen p-4 sm:p-6 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 sm:mb-8 px-2"
+        >
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+            Your Progress
+          </h1>
+          <p className="text-base sm:text-lg text-gray-600">
+            Track your coherence breathing journey and celebrate your consistency.
+          </p>
+
+          {trialInfo && (
+            <div className="mt-3 sm:mt-4">
+              <Badge 
+                className={`text-xs sm:text-sm px-3 sm:px-4 py-2 ${
+                  trialInfo.isExpired 
+                    ? "bg-red-100 text-red-800 border-red-200" 
+                    : "bg-blue-100 text-blue-800 border-blue-200"
+                }`}
+              >
+                {trialInfo.isExpired 
+                  ? "Trial expired - Upgrade for £1.50/month" 
+                  : `${trialInfo.daysLeft} days left in trial`
+                }
+              </Badge>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-200 shadow-lg">
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-teal-700">Total Sessions</CardTitle>
+                  <Target className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
+                <div className="text-2xl sm:text-3xl font-bold text-teal-900">{stats.totalSessions}</div>
+                <p className="text-xs text-teal-600 mt-1">Breathing sessions completed</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 shadow-lg">
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-green-700">Total Time</CardTitle>
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
+                <div className="text-2xl sm:text-3xl font-bold text-green-900">{stats.totalMinutes}</div>
+                <p className="text-xs text-green-600 mt-1">Minutes of practice</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 shadow-lg">
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-orange-700">Current Streak</CardTitle>
+                  <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
+                <div className="text-2xl sm:text-3xl font-bold text-orange-900">{stats.streak}</div>
+                <p className="text-xs text-orange-600 mt-1">Days in a row</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-lg">
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-purple-700">Average Length</CardTitle>
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
+                <div className="text-2xl sm:text-3xl font-bold text-purple-900">
+                  {stats.averageLength.toFixed(1)}
+                </div>
+                <p className="text-xs text-purple-600 mt-1">Minutes per session</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Weekly Activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0 mb-6 sm:mb-8">
+            <CardHeader className="px-4 sm:px-6">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600" />
+                This Week's Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                {Object.entries(weeklyData).map(([date, minutes], index) => {
+                  const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
+                  const intensity = minutes === 0 ? 0 : Math.min(4, Math.ceil(minutes / 5));
+                  
+                  return (
+                    <div key={date} className="text-center">
+                      <div className="text-[10px] sm:text-xs text-gray-500 mb-1">{dayOfWeek}</div>
+                      <div
+                        className={`w-full h-8 sm:h-10 rounded-md border-2 border-gray-200 flex items-center justify-center text-[10px] sm:text-xs font-medium ${
+                          intensity === 0 ? 'bg-gray-50' :
+                          intensity === 1 ? 'bg-teal-100 text-teal-700' :
+                          intensity === 2 ? 'bg-teal-200 text-teal-800' :
+                          intensity === 3 ? 'bg-teal-400 text-white' :
+                          'bg-teal-500 text-white'
+                        }`}
+                        title={`${minutes} minutes on ${date}`}
+                      >
+                        {minutes > 0 && <span className="block">{minutes}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600 mt-3 sm:mt-4 text-center px-2">
+                Each square represents your daily practice time. Darker colors indicate longer sessions.
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Recent Sessions */}
+        {sessions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+          >
+            <Card className="bg-white/80 backdrop-blur-sm shadow-xl border-0">
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-lg sm:text-xl">Recent Sessions</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
+                <div className="space-y-3">
+                  {sessions.slice(0, 10).map((session, index) => (
+                    <div
+                      key={session.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-3 sm:p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-900 text-sm sm:text-base">
+                          {session.duration_minutes} minute session
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                          {new Date(session.created_date).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800 border-green-200 w-fit text-xs sm:text-sm">
+                        Completed
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {sessions.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="text-center py-12 px-4"
+          >
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+              <Target className="w-10 h-10 sm:w-12 sm:h-12 text-teal-600" />
+            </div>
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Start Your Journey</h3>
+            <p className="text-sm sm:text-base text-gray-600 max-w-md mx-auto px-4">
+              Complete your first breathing session to start tracking your progress and building a healthy habit.
+            </p>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
